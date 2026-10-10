@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>くまチャット</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 0 10px; }
+    #chat-box { height: 300px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+    .msg { margin-bottom: 8px; padding: 6px 10px; background: #f0f0f0; border-radius: 6px; }
+    .input-area { display: flex; gap: 5px; }
+    input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 8px 16px; background: #0070f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>🐻 くまチャット (テスト版)</h2>
+  <div id="chat-box"></div>
+
+  <div class="input-area">
+    <input type="text" id="message-input" placeholder="メッセージを入力...">
+    <button onclick="sendMessage()">送信</button>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://fhuizwfnncpolofdswpu.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_Du6VDNLGBRTZZf9S089y5Q_ss8PuILE';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const chatBox = document.getElementById('chat-box');
+    const input = document.getElementById('message-input');
+
+    // 初期メッセージ読み込み
+    async function loadMessages() {
+      const { data } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
+      chatBox.innerHTML = '';
+      if (data) data.forEach(msg => appendMessage(msg));
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 画面にメッセージを表示
+    function appendMessage(msg) {
+      const div = document.createElement('div');
+      div.className = 'msg';
+      div.textContent = `${msg.user_name || '名無し'}: ${msg.content}`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 送信処理
+    async function sendMessage() {
+      const content = input.value.trim();
+      if (!content) return;
+      input.value = '';
+      await supabase.from('messages').insert([{ content }]);
+    }
+
+    // リアルタイム受信の設定
+    supabase.channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+        appendMessage(payload.new);
+      })
+      .subscribe();
+
+    loadMessages();
+  </script>
+</body>
+</html>
