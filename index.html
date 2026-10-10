@@ -1,69 +1,99 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>くまチャット</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 0 10px; }
-    #chat-box { height: 300px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
-    .msg { margin-bottom: 8px; padding: 6px 10px; background: #f0f0f0; border-radius: 6px; }
-    .input-area { display: flex; gap: 5px; }
-    input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-    button { padding: 8px 16px; background: #0070f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐻 くまチャット</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 0 10px; }
+        #chat-box { height: 300px; border: 1px solid #ccc; overflow-y: scroll; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { padding: 8px 10px; background: #f0f0f0; border-radius: 6px; word-break: break-all; }
+        .input-area { display: flex; gap: 5px; }
+        input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 16px; background: #0070f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0051cc; }
+    </style>
 </head>
 <body>
-  <h2>🐻 くまチャット (テスト版)</h2>
-  <div id="chat-box"></div>
+    <h2>🐻 くまチャット（テスト版）</h2>
+    <div id="chat-box"></div>
+    
+    <div class="input-area">
+        <input type="text" id="message-input" placeholder="メッセージを入力...">
+        <button id="send-button">送信</button>
+    </div>
 
-  <div class="input-area">
-    <input type="text" id="message-input" placeholder="メッセージを入力...">
-    <button onclick="sendMessage()">送信</button>
-  </div>
+    <script>
+        // Supabaseの設定
+        const SUPABASE_URL = 'https://fhuizwfnncpolofdswpu.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_Du6VDNLGBRTZZf9S089y5Q_ss8PuILE';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  <script>
-    const SUPABASE_URL = 'https://fhuizwfnncpolofdswpu.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_Du6VDNLGBRTZZf9S089y5Q_ss8PuILE';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const chatBox = document.getElementById('chat-box');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
 
-    const chatBox = document.getElementById('chat-box');
-    const input = document.getElementById('message-input');
+        // メッセージを画面に描画する関数
+        function appendMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.textContent = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
 
-    // 初期メッセージ読み込み
-    async function loadMessages() {
-      const { data } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
-      chatBox.innerHTML = '';
-      if (data) data.forEach(msg => appendMessage(msg));
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
+        // 過去のメッセージを読み込む
+        async function loadMessages() {
+            const { data, error } = await supabaseClient
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: true });
+            
+            if (error) {
+                console.error('読み込みエラー:', error);
+                return;
+            }
+            
+            chatBox.innerHTML = '';
+            data.forEach(msg => appendMessage(msg.content));
+        }
 
-    // 画面にメッセージを表示
-    function appendMessage(msg) {
-      const div = document.createElement('div');
-      div.className = 'msg';
-      div.textContent = `${msg.user_name || '名無し'}: ${msg.content}`;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
+        // メッセージを送信する関数
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
 
-    // 送信処理
-    async function sendMessage() {
-      const content = input.value.trim();
-      if (!content) return;
-      input.value = '';
-      await supabase.from('messages').insert([{ content }]);
-    }
+            const { error } = await supabaseClient
+                .from('messages')
+                .insert([{ content: text }]);
 
-    // リアルタイム受信の設定
-    supabase.channel('public:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        appendMessage(payload.new);
-      })
-      .subscribe();
+            if (error) {
+                console.error('送信エラー:', error);
+                alert('送信に失敗しました: ' + error.message);
+                return;
+            }
 
-    loadMessages();
-  </script>
+            messageInput.value = '';
+        }
+
+        // ボタンクリックまたはEnterキーで送信
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // リアルタイムで新しいメッセージを受信
+        supabaseClient
+            .channel('public:messages')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                appendMessage(payload.new.content);
+            })
+            .subscribe();
+
+        // 初期読み込み
+        loadMessages();
+    </script>
 </body>
 </html>
